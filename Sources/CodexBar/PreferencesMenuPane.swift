@@ -66,6 +66,15 @@ struct MenuPane: View {
             Section {
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
 
+                SettingsMenuPicker(
+                    selection: self.$settings.mergedOverviewLayout,
+                    options: MenuSettingsMenuOptions.mergedOverviewLayouts,
+                    label: {
+                        SettingsRowLabel(L("overview_layout_title"), subtitle: L("overview_layout_subtitle"))
+                    },
+                    optionLabel: { Text($0.label) })
+                    .disabled(!self.settings.mergeIcons)
+
                 Toggle(isOn: self.$settings.showOptionalCreditsAndExtraUsage) {
                     SettingsRowLabel(
                         L("show_credits_extra_usage_title"),
@@ -120,6 +129,13 @@ struct AgentSessionsSettingsSection: View {
                     Text(style.label)
                 })
                 .disabled(!self.settings.agentSessionsEnabled)
+
+            Toggle(isOn: self.$settings.agentSessionsHideUnreachableHosts) {
+                SettingsRowLabel(
+                    L("agent_sessions_hide_unreachable_title"),
+                    subtitle: L("agent_sessions_hide_unreachable_subtitle"))
+            }
+            .disabled(!self.settings.agentSessionsEnabled)
 
             AgentSessionHostsEditor(settings: self.settings)
         } header: {

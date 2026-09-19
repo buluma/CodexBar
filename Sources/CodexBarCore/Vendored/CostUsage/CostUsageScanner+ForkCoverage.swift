@@ -47,13 +47,14 @@ extension CostUsageScanner {
         var rowsByDayModel: [String: [String: [CodexUsageRow]]]
         var unresolvedRowGroups: Set<CodexDayModelKey>
         var modeOwnershipMismatchGroups: Set<CodexDayModelKey>
-        var priorityEvidenceGroups: Set<CodexDayModelKey>
+        var requestPricingEvidenceGroups: Set<CodexDayModelKey>
         var incompletePricingEvidenceGroups: Set<CodexDayModelKey>
         var authoritativeCostEvidenceGroups: Set<CodexDayModelKey>
         var priorityTurns: [String: CodexPriorityTurnMetadata]
         var modelsDevCatalog: ModelsDevCatalog
         var modelsDevCacheRoot: URL?
         var customPricing: CostUsageCustomPricing
+        var pricingResolver: CostUsagePricing.CodexResolver
     }
 
     static func unmeteredForkReportEntry(day: String, unmetered: Int) -> CostUsageDailyReport.Entry? {
@@ -111,25 +112,28 @@ extension CostUsageScanner {
                 priorityTurns: pricing.priorityTurns,
                 modelsDevCatalog: pricing.modelsDevCatalog,
                 modelsDevCacheRoot: pricing.modelsDevCacheRoot,
-                customPricing: pricing.customPricing)
+                customPricing: pricing.customPricing,
+                pricingResolver: pricing.pricingResolver)
             let group = CodexDayModelKey(day: day, model: model)
             let rowCostIsTrusted = !pricing.unresolvedRowGroups.contains(group)
                 && !pricing.modeOwnershipMismatchGroups.contains(group)
                 && rowCost?.isTrusted(canonicalTotalTokens: totalTokens) == true
-            let aggregateCost = pricing.priorityEvidenceGroups.contains(group)
+            let aggregateCost = pricing.requestPricingEvidenceGroups.contains(group)
                 || pricing.incompletePricingEvidenceGroups.contains(group)
                 || (pricing.unresolvedRowGroups.contains(group)
                     && pricing.authoritativeCostEvidenceGroups.contains(group))
                 || rowCost?.hasIncompletePricing == true
                 ? nil
-                : CostUsagePricing.codexAggregateCostUSD(
+                : CostUsagePricing.codexCostUSD(
+                    aggregate: true,
                     model: model,
                     inputTokens: input,
                     cachedInputTokens: cached,
                     outputTokens: output,
                     modelsDevCatalog: pricing.modelsDevCatalog,
                     modelsDevCacheRoot: pricing.modelsDevCacheRoot,
-                    customPricing: pricing.customPricing)
+                    customPricing: pricing.customPricing,
+                    pricingResolver: pricing.pricingResolver)
             let cost = rowCostIsTrusted
                 ? rowCost?.totalCostUSD ?? aggregateCost
                 : aggregateCost

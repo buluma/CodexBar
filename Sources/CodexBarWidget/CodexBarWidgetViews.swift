@@ -45,7 +45,6 @@ struct CodexBarUsageWidgetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
     }
 }
 
@@ -75,7 +74,6 @@ struct CodexBarHistoryWidgetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
     }
 }
 
@@ -104,7 +102,6 @@ struct CodexBarCompactWidgetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
     }
 }
 
@@ -127,7 +124,6 @@ struct CodexBarSwitcherWidgetView: View {
                 self.emptyState
             }
         }
-        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
         .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
@@ -169,7 +165,10 @@ private struct CompactMetricView: View {
                 Text(display.value)
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text(display.label)
+                WidgetFormat.tokenRowTitle(
+                    display.label,
+                    summary: self.metric == .credits ? nil : self.entry.tokenUsage,
+                    entryUpdatedAt: self.entry.updatedAt)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 if let detail = display.detail {
@@ -179,7 +178,6 @@ private struct CompactMetricView: View {
                 }
             }
         }
-        .padding(12)
     }
 }
 
@@ -207,10 +205,7 @@ enum CompactMetricFormatter {
             } ?? "—"
             let detail = entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
             let label = entry.tokenUsage.map {
-                WidgetFormat.tokenRowTitle(
-                    Self.costMetricLabel($0.sessionLabel, provider: entry.provider),
-                    summary: $0,
-                    entryUpdatedAt: entry.updatedAt)
+                Self.costMetricLabel($0.sessionLabel, provider: entry.provider)
             } ?? "Today cost"
             return CompactMetricDisplay(value: value, label: label, detail: detail)
         case .last30DaysCost:
@@ -219,10 +214,7 @@ enum CompactMetricFormatter {
             } ?? "—"
             let detail = entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
             let label = entry.tokenUsage.map {
-                WidgetFormat.tokenRowTitle(
-                    Self.costMetricLabel($0.last30DaysLabel, provider: entry.provider),
-                    summary: $0,
-                    entryUpdatedAt: entry.updatedAt)
+                Self.costMetricLabel($0.last30DaysLabel, provider: entry.provider)
             } ?? "30d cost"
             return CompactMetricDisplay(value: value, label: label, detail: detail)
         }
@@ -255,9 +247,10 @@ private struct ProviderSwitcherRow: View {
             }
             if self.showsTimestamp {
                 Spacer(minLength: 6)
-                Text(WidgetFormat.relativeDate(self.updatedAt))
+                Text(self.updatedAt, style: .relative)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
             }
         }
     }
@@ -356,7 +349,7 @@ private struct SwitcherMediumUsageView: View {
                     color: WidgetColors.color(for: self.entry.provider))
             }
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: Text("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 ValueLine(
@@ -394,7 +387,7 @@ private struct SwitcherLargeUsageView: View {
                     color: WidgetColors.color(for: self.entry.provider))
             }
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: Text("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
@@ -466,7 +459,6 @@ private struct SmallUsageView: View {
                 balance
             }
         }
-        .padding(12)
     }
 }
 
@@ -486,7 +478,7 @@ private struct MediumUsageView: View {
                     color: WidgetColors.color(for: self.entry.provider))
             }
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: Text("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 ValueLine(
@@ -503,7 +495,6 @@ private struct MediumUsageView: View {
                 balance
             }
         }
-        .padding(12)
     }
 }
 
@@ -526,7 +517,7 @@ private struct LargeUsageView: View {
                     color: WidgetColors.color(for: self.entry.provider))
             }
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: Text("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
@@ -559,7 +550,6 @@ private struct LargeUsageView: View {
                 currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
-        .padding(12)
     }
 }
 
@@ -567,11 +557,6 @@ struct WidgetUsageRow: Identifiable, Equatable {
     let id: String
     let title: String
     let percentLeft: Double?
-
-    private enum AntigravityQuotaFamily {
-        case gemini
-        case claudeGPT
-    }
 
     static func smallWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
         self.widgetRowLimit(for: entry, family: .small)
@@ -647,10 +632,10 @@ struct WidgetUsageRow: Identifiable, Equatable {
            limit >= 2,
            rows.contains(where: { $0.id.hasPrefix("antigravity-quota-summary-") })
         {
-            var selected = [AntigravityQuotaFamily.gemini, .claudeGPT].compactMap { family in
-                rows
-                    .filter { self.antigravityQuotaFamily(for: $0) == family }
-                    .min(by: self.isMoreConstrained)
+            var selected = AntigravityQuotaFamilyVisibility.KnownFamily.allCases.compactMap { family in
+                rows.filter {
+                    AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == family
+                }.min(by: self.isMoreConstrained)
             }
             let selectedIDs = Set(selected.map(\.id))
             let fallbackRows = rows.enumerated()
@@ -726,27 +711,6 @@ struct WidgetUsageRow: Identifiable, Equatable {
         return entry.tokenUsage
     }
 
-    private static func antigravityQuotaFamily(for row: WidgetUsageRow) -> AntigravityQuotaFamily? {
-        // Provider-specific by design: Antigravity IDs/titles classify Gemini versus third-party quota families.
-        guard row.id.hasPrefix("antigravity-quota-summary-") else { return nil }
-        let id = row.id.lowercased()
-        if id.contains("gemini") {
-            return .gemini
-        }
-        if id.contains("3p") || id.contains("third-party") {
-            return .claudeGPT
-        }
-
-        let title = row.title.lowercased()
-        if title.contains("gemini") {
-            return .gemini
-        }
-        if title.contains("claude") || title.contains("gpt") {
-            return .claudeGPT
-        }
-        return nil
-    }
-
     private static func isMoreConstrained(_ lhs: WidgetUsageRow, than rhs: WidgetUsageRow) -> Bool {
         switch (lhs.percentLeft, rhs.percentLeft) {
         case let (.some(left), .some(right)):
@@ -802,7 +766,6 @@ private struct HistoryView: View {
                         currencyCode: token.currencyCode))
             }
         }
-        .padding(12)
     }
 }
 
@@ -817,9 +780,10 @@ private struct HeaderView: View {
                 .font(.body)
                 .fontWeight(.semibold)
             Spacer()
-            Text(WidgetFormat.relativeDate(self.updatedAt))
+            Text(self.updatedAt, style: .relative)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
         }
     }
 }
@@ -854,12 +818,12 @@ private struct UsageBarRow: View {
 }
 
 private struct ValueLine: View {
-    let title: String
+    let title: Text
     let value: String
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(self.title)
+            self.title
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -961,7 +925,7 @@ enum WidgetBalanceFormatter {
 
 private func extraUsageBalanceLine(for entry: WidgetSnapshot.ProviderEntry) -> ValueLine? {
     guard let line = WidgetBalanceFormatter.extraUsageBalance(for: entry) else { return nil }
-    return ValueLine(title: line.title, value: line.value)
+    return ValueLine(title: Text(line.title), value: line.value)
 }
 
 enum WidgetFormat {
@@ -999,21 +963,16 @@ enum WidgetFormat {
         "\(UsageFormatter.tokenCountString(value)) tokens"
     }
 
-    static func relativeDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
     /// Suffixes the title with the token snapshot's own age once it lags the entry's
     /// freshness signal past `TokenUsageSummary.staleLagThreshold`.
     static func tokenRowTitle(
         _ base: String,
-        summary: WidgetSnapshot.TokenUsageSummary,
-        entryUpdatedAt: Date) -> String
+        summary: WidgetSnapshot.TokenUsageSummary?,
+        entryUpdatedAt: Date) -> Text
     {
-        guard summary.isStale(comparedTo: entryUpdatedAt), let updatedAt = summary.updatedAt else { return base }
-        return "\(base) · \(self.relativeDate(updatedAt))"
+        guard let summary, summary.isStale(comparedTo: entryUpdatedAt), let updatedAt = summary.updatedAt else {
+            return Text(base)
+        }
+        return Text("\(base) · \(Text(updatedAt, style: .relative))")
     }
 }

@@ -14,6 +14,8 @@ struct CostUsageCache: Codable, Equatable, @unchecked Sendable {
     var codexPriorityTurnKeys: [String: String]?
     var codexPriorityTurnIDsByDay: [String: [String]]?
     var codexPriorityTurnsCursor: CostUsageScanner.CodexPriorityTurnsPersistedCursor?
+    /// Last validated report evidence; an empty map is distinct from an older cache without it.
+    var codexResolvedPriorityTurns: [String: CostUsageScanner.CodexPriorityTurnMetadata]?
     var codexScanCatchUpPending: Bool?
     var codexScanProcessedBytes: Int64?
     var codexScanTotalBytes: Int64?
@@ -262,6 +264,9 @@ struct CostUsageCodexRetryBufferPresence: Codable, Equatable, Sendable {
 }
 
 struct CostUsageFileUsage: Codable, Equatable {
+    /// Increment for native parser corrections; older or absent revisions use bounded reparsing.
+    static let currentCodexParserRevision = 2
+
     var mtimeUnixMs: Int64
     var size: Int64
     var days: [String: [String: [Int]]]
@@ -291,6 +296,10 @@ struct CostUsageFileUsage: Codable, Equatable {
     var codexTurnIDs: [String]?
     var codexWorkspaceContentFingerprint: String?
     var codexRows: [CostUsageScanner.CodexUsageRow]?
+    var codexNextUsageRowIndex: Int?
+    var codexPendingPricing: [String: CostUsageScanner.CodexPricingEvidence]?
+    var codexPendingSourcePricing: [CostUsageScanner.CodexSourcePricingKey: CostUsageScanner.CodexPricingEvidence]?
+    var codexPendingSourcePricingAnchor: CostUsageCodexTokenIndexAnchor?
     var codexTokenSnapshots: [CostUsageCodexTokenSnapshot]?
     var codexTokenCheckpoints: [CostUsageCodexTokenCheckpoint]?
     var codexTokenTimestampsMonotonic: Bool?
@@ -304,6 +313,11 @@ struct CostUsageFileUsage: Codable, Equatable {
     var codexBufferedUnresolvedForkLines: [CostUsageScanner.CodexBufferedFastLine]?
     /// Only the store's private read-view adapter uses presence without loading replay bodies.
     var codexReadRetryBufferPresence: CostUsageCodexRetryBufferPresence?
+    var codexParserRevision: Int? = CostUsageFileUsage.currentCodexParserRevision
+
+    var hasCurrentCodexParser: Bool {
+        self.codexParserRevision == Self.currentCodexParserRevision
+    }
 
     var hasBufferedCodexSubagentLines: Bool {
         self.codexReadRetryBufferPresence?.subagent ?? (self.codexBufferedSubagentLines?.isEmpty == false)
